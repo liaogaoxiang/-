@@ -600,16 +600,32 @@
       const file = defaultFile;
       $("error").style.display = "none";
       try {
-        let response = await fetch(`/api/progress?file=${encodeURIComponent(file)}`);
-        let contentType = response.headers.get("content-type") || "";
-        if (!response.ok || !contentType.includes("application/json")) {
-          response = await fetch("data.json");
-          contentType = response.headers.get("content-type") || "";
+        const isLocalServer = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+        const urls = isLocalServer
+          ? [`/api/progress?file=${encodeURIComponent(file)}`, "data.json"]
+          : ["data.json"];
+
+        let payload = null;
+        let lastError = null;
+        for (const url of urls) {
+          try {
+            const response = await fetch(url, { cache: "no-store" });
+            if (!response.ok) {
+              throw new Error(`${url} 返回 ${response.status}`);
+            }
+            const raw = await response.text();
+            if (raw.trim().startsWith("<")) {
+              throw new Error(`${url} 返回了网页内容，不是 JSON 数据`);
+            }
+            payload = JSON.parse(raw);
+            break;
+          } catch (error) {
+            lastError = error;
+          }
         }
-        if (!response.ok || !contentType.includes("application/json")) {
-          throw new Error("未找到数据文件 data.json，请先生成并上传。");
+        if (!payload) {
+          throw lastError || new Error("未找到数据文件 data.json，请先生成并上传。");
         }
-        const payload = await response.json();
         if (!payload.ok) throw new Error(payload.error || "加载失败");
         render(payload.data);
       } catch (error) {
