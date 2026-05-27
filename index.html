@@ -600,7 +600,15 @@
       const file = defaultFile;
       $("error").style.display = "none";
       try {
-        const response = await fetch(`/api/progress?file=${encodeURIComponent(file)}`);
+        let response = await fetch(`/api/progress?file=${encodeURIComponent(file)}`);
+        let contentType = response.headers.get("content-type") || "";
+        if (!response.ok || !contentType.includes("application/json")) {
+          response = await fetch("data.json");
+          contentType = response.headers.get("content-type") || "";
+        }
+        if (!response.ok || !contentType.includes("application/json")) {
+          throw new Error("未找到数据文件 data.json，请先生成并上传。");
+        }
         const payload = await response.json();
         if (!payload.ok) throw new Error(payload.error || "加载失败");
         render(payload.data);
